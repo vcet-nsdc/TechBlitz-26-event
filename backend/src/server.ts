@@ -5,6 +5,7 @@ validateEnv();
 import { buildApp } from "./app";
 import { createScoreWorker } from "./workers/scoreWorker";
 import { createSubmissionWorker } from "./workers/submissionWorker";
+import { startFigmaPoller } from "./workers/figmaPoller";
 import { setShuttingDown } from "./routes/health";
 import { createLogger } from "./lib/logger";
 
