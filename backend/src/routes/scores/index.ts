@@ -7,6 +7,7 @@ import { AppError } from "../../lib/errors";
 import { AuthUser } from "../../types/entities";
 import { enqueueScoreAggregation } from "./processor";
 import { emitScoreAccepted } from "../../socket/handlers/scoreHandlers";
+import { enforceScoreConstraints } from "./constraints";
 
 const scoreSubmissionSchema = z.object({
   teamId: z.string().min(1),
@@ -67,6 +68,13 @@ const scoreRoutes: FastifyPluginAsync = async (app) => {
           throw new AppError("Judge is not assigned to this team's lab", 403);
         }
       }
+
+      await enforceScoreConstraints({
+        app,
+        teamDomain: team.domain,
+        round: payload.round,
+        criteria: payload.criteria
+      });
 
       const scoreRows = await app.prisma.$transaction(
         payload.criteria.map((criterion) =>

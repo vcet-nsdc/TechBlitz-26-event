@@ -4,12 +4,15 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate";
 import { AppError } from "../../lib/errors";
 import { AuthUser } from "../../types/entities";
+import { checkFigmaFileAccess, parseFigmaUrl } from "../../lib/figma";
+import { syncFigma } from "../../services/scoreService";
 
 const registerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   teamName: z.string().min(2),
-  domain: z.nativeEnum(Domain)
+  domain: z.nativeEnum(Domain),
+  figmaUrl: z.string().url()
 });
 
 const participantRoutes: FastifyPluginAsync = async (app) => {
@@ -19,12 +22,13 @@ const participantRoutes: FastifyPluginAsync = async (app) => {
       schema: {
         body: {
           type: "object",
-          required: ["name", "email", "teamName", "domain"],
+          required: ["name", "email", "teamName", "domain", "figmaUrl"],
           properties: {
             name: { type: "string", minLength: 2 },
             email: { type: "string", format: "email" },
             teamName: { type: "string", minLength: 2 },
-            domain: { type: "string", enum: ["UIUX", "AGENTIC_AI", "VIBE_CODING"] }
+            domain: { type: "string", enum: ["UIUX", "AGENTIC_AI", "VIBE_CODING"] },
+            figmaUrl: { type: "string", format: "uri" }
           }
         }
       }
@@ -32,6 +36,22 @@ const participantRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const payload = registerSchema.parse(request.body);
       const email = payload.email.toLowerCase();
+      const figmaFileKey = parseFigmaUrl(payload.figmaUrl);
+
+      if (!figmaFileKey) {
+        throw new AppError("Invalid Figma URL", 400);
+      }
+
+      const figmaAccessStatus = await checkFigmaFileAccess(figmaFileKey);
+      if (figmaAccessStatus === "forbidden" || figmaAccessStatus === "not_found") {
+        throw new AppError(
+          "Figma file not accessible. Make sure view-link sharing is enabled.",
+          400
+        );
+      }
+      if (figmaAccessStatus === "failed") {
+        throw new AppError("Unable to validate Figma file right now", 503);
+      }
 
       const existing = await app.prisma.participant.findUnique({ where: { email } });
       if (existing) {
@@ -60,9 +80,19 @@ const participantRoutes: FastifyPluginAsync = async (app) => {
           data: {
             name: payload.teamName,
             labId: chosenLab.id,
-            domain: payload.domain
+            domain: payload.domain,
+            figmaFileKey,
+            figmaAccessError: false
           }
         });
+        } else if (!team.figmaFileKey) {
+          team = await app.prisma.team.update({
+            where: { id: team.id },
+            data: {
+              figmaFileKey,
+              figmaAccessError: false
+            }
+          });
       }
 
       const participant = await app.prisma.participant.create({
@@ -79,6 +109,8 @@ const participantRoutes: FastifyPluginAsync = async (app) => {
         teamId: team.id,
         email: participant.email
       });
+
+      void syncFigma(app.prisma, team.id);
 
       return reply.status(201).send({
         participant: {

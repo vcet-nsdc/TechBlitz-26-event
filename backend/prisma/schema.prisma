@@ -65,6 +65,9 @@ model Team {
   scores       Score[]
   prompts      PromptLog[]
   inFinals     Boolean            @default(false)
+  figmaFileKey String?
+  figmaAccessError Boolean        @default(false)
+  figmaSnapshots FigmaSnapshot[]
   leaderboard  LeaderboardEntry[]
 }
 
@@ -117,10 +120,36 @@ model Score {
   criteriaId  String
   criteria    ScoreCriteria @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
   value       Float
+  githubScore Float         @default(0)
+  totalScore Float          @default(0)
+  figmaScore Float          @default(0)
+  figmaActivityScore Float  @default(0)
+  figureCoverageScore Float @default(0)
+  figmaMaturityScore Float  @default(0)
+  figmaCollabScore Float    @default(0)
+  figmaFrameCount Int       @default(0)
+  figmaVersionCount Int     @default(0)
+  figmaComponentCount Int   @default(0)
   round       String
   submittedAt DateTime     @default(now())
 
   @@unique([judgeId, teamId, criteriaId, round])
+}
+
+model FigmaSnapshot {
+  id                String   @id @default(cuid())
+  teamId            String
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  takenAt           DateTime @default(now())
+  frameCount        Int      @default(0)
+  pageCount         Int      @default(0)
+  componentCount    Int      @default(0)
+  instanceCount     Int      @default(0)
+  versionCount      Int      @default(0)
+  namedVersionCount Int      @default(0)
+  collaboratorCount Int      @default(0)
+
+  @@index([teamId, takenAt])
 }
 
 model PromptLog {

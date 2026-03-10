@@ -1,14 +1,17 @@
 import { buildApp } from "./app";
 import { createScoreWorker } from "./workers/scoreWorker";
 import { createSubmissionWorker } from "./workers/submissionWorker";
+import { startFigmaPoller } from "./workers/figmaPoller";
 
 async function startServer(): Promise<void> {
   const app = await buildApp();
 
   const scoreWorker = createScoreWorker(app);
   const submissionWorker = createSubmissionWorker(app);
+  const stopFigmaPoller = startFigmaPoller(app);
 
   app.addHook("onClose", async () => {
+    stopFigmaPoller();
     await scoreWorker.close();
     await submissionWorker.close();
   });
