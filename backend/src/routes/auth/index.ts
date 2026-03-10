@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { Resend } from "resend";
-import { AppError } from "../../lib/errors";
+import { AuthError, NotFoundError, InternalError } from "../../lib/errors";
 import { redisKeys } from "../../lib/redis";
 
 const loginSchema = z.object({
@@ -36,12 +36,12 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         include: { labs: true }
       });
       if (!judge) {
-        throw new AppError("Invalid credentials", 401);
+        throw new AuthError("Invalid credentials");
       }
 
       const validPassword = await bcrypt.compare(payload.password, judge.passwordHash);
       if (!validPassword) {
-        throw new AppError("Invalid credentials", 401);
+        throw new AuthError("Invalid credentials");
       }
 
       const adminEmail = (process.env.ADMIN_EMAIL ?? "admin@hackathon.dev").toLowerCase();
@@ -78,12 +78,12 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         select: { id: true, email: true, name: true }
       });
       if (!participant) {
-        throw new AppError("Participant not found", 404);
+        throw new NotFoundError("Participant");
       }
 
       const resendApiKey = process.env.RESEND_API_KEY;
       if (!resendApiKey) {
-        throw new AppError("RESEND_API_KEY is not configured", 500);
+        throw new InternalError("RESEND_API_KEY is not configured");
       }
 
       const otp = Math.floor(100000 + Math.random() * 900000).toString();

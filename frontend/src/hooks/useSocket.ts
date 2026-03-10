@@ -1,46 +1,38 @@
 "use client";
 
-import { getSocket } from "@/lib/socket";
+import { socketManager } from "@/lib/socket";
+import { useEventStore } from "@/store/eventStore";
 import { useSession } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { Socket } from "socket.io-client";
 
 export function useSocket(namespace: "/judges" | "/participants" | "/broadcast") {
   const { data: session } = useSession();
+  const socketRef = useRef<Socket | null>(null);
+  const connections = useEventStore((s) => s.connections);
+  const connState = connections[namespace] ?? "disconnected";
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
 
-  const socket = useMemo(
-    () => getSocket(namespace, session?.user.backendToken),
-    [namespace, session?.user.backendToken]
-  );
+  useEffect(() => {
+    const token = session?.user?.backendToken;
+    try {
+      socketRef.current = socketManager.connect(namespace, token);
+    } catch {
+      socketRef.current = null;
+    }
+
+    // Do NOT disconnect on unmount — preserve connection across route changes
+  }, [namespace, session?.user?.backendToken]);
 
   useEffect(() => {
-    if (!socket) {
-      return;
-    }
-    const onConnect = () => {
-      setIsConnected(true);
-      setIsReconnecting(false);
-    };
-    const onDisconnect = () => setIsConnected(false);
-    const onReconnectAttempt = () => setIsReconnecting(true);
-    const onReconnect = () => {
-      setIsConnected(true);
-      setIsReconnecting(false);
-    };
+    setIsConnected(connState === "connected");
+    setIsReconnecting(connState === "reconnecting");
+  }, [connState]);
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.io.on("reconnect_attempt", onReconnectAttempt);
-    socket.io.on("reconnect", onReconnect);
+  return { socket: socketRef.current, isConnected, isReconnecting };
+}
 
-    return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.io.off("reconnect_attempt", onReconnectAttempt);
-      socket.io.off("reconnect", onReconnect);
-    };
-  }, [socket]);
-
-  return { socket, isConnected, isReconnecting };
+export function useDisconnectAll() {
+  return () => socketManager.disconnectAll();
 }
