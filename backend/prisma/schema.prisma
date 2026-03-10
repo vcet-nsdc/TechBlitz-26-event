@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Domain {
+  UIUX
+  AGENTIC_AI
+  VIBE_CODING
+}
+
+enum EventPhase {
+  REGISTRATION
+  LAB_ROUND
+  FINALS
+  CLOSED
+}
+
+enum SubmissionType {
+  FIGMA_LINK
+  GITHUB_LINK
+}
+
+enum SubmissionStatus {
+  PENDING
+  VALIDATING
+  VALID
+  INVALID
+}
+
+model EventConfig {
+  id        Int        @id @default(1)
+  phase     EventPhase @default(REGISTRATION)
+  updatedAt DateTime   @updatedAt
+}
+
+model Lab {
+  id     String     @id @default(cuid())
+  name   String
+  domain Domain
+  teams  Team[]
+  judges JudgeLab[]
+}
+
+model Participant {
+  id     String  @id @default(cuid())
+  name   String
+  email  String  @unique
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+}
+
+model Team {
+  id           String             @id @default(cuid())
+  name         String
+  domain       Domain
+  labId        String
+  lab          Lab                @relation(fields: [labId], references: [id], onDelete: Cascade)
+  participants Participant[]
+  submission   Submission?
+  scores       Score[]
+  prompts      PromptLog[]
+  inFinals     Boolean            @default(false)
+  leaderboard  LeaderboardEntry[]
+}
+
+model Submission {
+  id          String           @id @default(cuid())
+  teamId      String           @unique
+  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  type        SubmissionType
+  url         String
+  status      SubmissionStatus @default(PENDING)
+  validatedAt DateTime?
+  submittedAt DateTime         @default(now())
+}
+
+model Judge {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  domain       Domain
+  labs         JudgeLab[]
+  scores       Score[]
+}
+
+model JudgeLab {
+  judgeId String
+  labId   String
+  judge   Judge  @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  lab     Lab    @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@id([judgeId, labId])
+}
+
+model ScoreCriteria {
+  id       String  @id @default(cuid())
+  domain   Domain
+  name     String
+  maxScore Int
+  weight   Float
+  isFinal  Boolean @default(false)
+  scores   Score[]
+}
+
+model Score {
+  id          String       @id @default(cuid())
+  judgeId     String
+  judge       Judge        @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  teamId      String
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  criteriaId  String
+  criteria    ScoreCriteria @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+  value       Float
+  round       String
+  submittedAt DateTime     @default(now())
+
+  @@unique([judgeId, teamId, criteriaId, round])
+}
+
+model PromptLog {
+  id         String   @id @default(cuid())
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  promptText String
+  toolUsed   String?
+  loggedAt   DateTime @default(now())
+}
+
+model LeaderboardEntry {
+  id         String   @id @default(cuid())
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  domain     Domain
+  labId      String?
+  round      String
+  totalScore Float
+  rank       Int
+  snapshotAt DateTime @default(now())
+}
