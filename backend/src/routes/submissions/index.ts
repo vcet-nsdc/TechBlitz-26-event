@@ -2,7 +2,7 @@ import { SubmissionType } from "@prisma/client";
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate";
-import { AppError } from "../../lib/errors";
+import { ValidationError } from "../../lib/errors";
 import { enqueueSubmissionValidation } from "../../services/submissionService";
 import { AuthUser } from "../../types/entities";
 
@@ -31,7 +31,7 @@ const submissionRoutes: FastifyPluginAsync = async (app) => {
       const user = request.user as AuthUser;
       const payload = submissionPayload.parse(request.body);
       if (!user.teamId) {
-        throw new AppError("Participant has no team assigned", 400);
+        throw new ValidationError("Participant has no team assigned");
       }
 
       await enqueueSubmissionValidation(app, user.teamId, payload.type, payload.url);
@@ -47,7 +47,7 @@ const submissionRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = request.user as AuthUser;
       if (!user.teamId) {
-        throw new AppError("Participant has no team assigned", 400);
+        throw new ValidationError("Participant has no team assigned");
       }
       const submission = await app.prisma.submission.findUnique({
         where: { teamId: user.teamId }

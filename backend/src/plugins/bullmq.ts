@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from "fastify";
 import { Queue } from "bullmq";
 
 const bullmqPlugin: FastifyPluginAsync = async (app) => {
-  const redisUrl = process.env.REDIS_URL;
+  const redisUrl = process.env.BULL_REDIS_URL ?? process.env.REDIS_URL;
   if (!redisUrl) {
     throw new Error("REDIS_URL must be configured");
   }
