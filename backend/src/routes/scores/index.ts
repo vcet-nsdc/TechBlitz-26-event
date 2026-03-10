@@ -3,7 +3,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate";
 import { authorizeJudge } from "../../middleware/authorizeJudge";
 import { scoreRateLimitConfig } from "../../middleware/rateLimiter";
-import { AppError } from "../../lib/errors";
+import { NotFoundError, ForbiddenError } from "../../lib/errors";
 import { AuthUser } from "../../types/entities";
 import { enqueueScoreAggregation } from "./processor";
 import { emitScoreAccepted } from "../../socket/handlers/scoreHandlers";
@@ -59,13 +59,13 @@ const scoreRoutes: FastifyPluginAsync = async (app) => {
         include: { lab: true }
       });
       if (!team) {
-        throw new AppError("Team not found", 404);
+        throw new NotFoundError("Team", payload.teamId);
       }
 
       if (user.role === "judge") {
         const assignedLabs = user.assignedLabs ?? [];
         if (!assignedLabs.includes(team.labId)) {
-          throw new AppError("Judge is not assigned to this team's lab", 403);
+          throw new ForbiddenError("Judge is not assigned to this team's lab");
         }
       }
 

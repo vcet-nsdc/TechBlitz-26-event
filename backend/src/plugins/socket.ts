@@ -12,14 +12,38 @@ const socketPlugin: FastifyPluginAsync = async (app) => {
     throw new Error("REDIS_URL must be configured");
   }
 
+  const isDev = process.env.NODE_ENV === "development";
+  const frontendUrl = process.env.FRONTEND_URL;
+  const allowedOriginsRaw = process.env.ALLOWED_ORIGINS;
+
+  let corsOrigin: string[] | boolean;
+  if (isDev) {
+    corsOrigin = true;
+  } else {
+    const list: string[] = [];
+    if (frontendUrl) list.push(frontendUrl);
+    if (allowedOriginsRaw) {
+      list.push(...allowedOriginsRaw.split(",").map((s) => s.trim()).filter(Boolean));
+    }
+    corsOrigin = list.length > 0 ? [...new Set(list)] : false;
+  }
+
   const io = new Server(app.server, {
     cors: {
-      origin: process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL,
+      origin: corsOrigin,
       credentials: true
-    }
+    },
+    transports: ["websocket", "polling"],
+    pingInterval: 25000,
+    pingTimeout: 20000
   });
 
-  const pubClient = new Redis(redisUrl, { maxRetriesPerRequest: null });
+  const useTls = process.env.REDIS_TLS === "true";
+  const redisOpts = {
+    maxRetriesPerRequest: null as null,
+    ...(useTls ? { tls: {} } : {})
+  };
+  const pubClient = new Redis(redisUrl, redisOpts);
   const subClient = pubClient.duplicate();
   io.adapter(createAdapter(pubClient, subClient));
 
